@@ -1,7 +1,6 @@
 import express from "express";
 import type { Response, Request } from "express";
 import https from "https";
-import type { IncomingMessage } from "http";
 const cors = require("cors");
 
 const app = express();
@@ -28,8 +27,39 @@ const generateOptions = (path: string) => {
   };
 };
 
+app.get("/repo_commits", (req: Request, res: Response) => {
+  const { owner, repo } = req.query;
+  const options = generateOptions(`/repos/${owner}/${repo}/commits`);
+  https.get(options, (response) => {
+    let data = "";
+
+    response.on("data", (chunk) => {
+      data += chunk;
+    });
+
+    response.on("end", () => {
+      try {
+        // TODO: type properly
+        const jsonData = JSON.parse(data).map((commitObj: any) => {
+          const { html_url, commit } = commitObj;
+          const { author, message } = commit;
+          return { html_url, author_name: author.name, message };
+        });
+        console.log(jsonData);
+        res.json(jsonData);
+      } catch (err) {
+        console.error("Error parsing JSON:", err);
+        res.status(500).send("Error parsing JSON");
+      }
+    });
+  });
+});
+
 app.get("/org_repos", (req: Request, res: Response) => {
   const { org } = req.query;
+  if (!org) {
+    res.status(400).send("Must pass an org as query parameter");
+  }
   const options = generateOptions(`/orgs/${org}/repos`);
 
   https
